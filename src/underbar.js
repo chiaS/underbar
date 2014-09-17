@@ -198,9 +198,10 @@ var _ = {};
   _.some = function(collection, iterator) {
     // TIP: There's a very clever way to re-use every() here.
 	return  _.reduce(collection, function(isMatch, item){
-		  if(isMatch || typeof item === 'string') // ??
+		  if(isMatch) 
 			  return true;
-		  return isMatch = (iterator === undefined)? false : Boolean(iterator(item));
+		  return isMatch = (iterator === undefined)? Boolean(_.identity(item))//_identity is the default iterator when its not provided
+				  : Boolean(iterator(item));
 	  }, false);
   };
 
@@ -227,7 +228,6 @@ var _ = {};
 	  var args = arguments;	  
 	  for(var i=1; i<args.length; i++){
 		  for(var prop in args[i]){
-			  //obj.prop wont work
 			  obj[prop] = args[i][prop];
 		  }
 	  }
@@ -286,15 +286,16 @@ var _ = {};
   // already computed the result for the given argument and return that value
   // instead if possible.
   _.memoize = function(func) {
-	  var cache = []; 
+	  var cache = []; //store objects with args and result properties
 	  return function(){		 
-		  var result;
-		  var equalArgs = true;
-		  var obj=new Object();//store args and return result
+		  var result; //for return
+		  var equalArgs = true; //if there is a object in cache having the same args as arguments
+		 
 		  var inputArgs = arguments; // create a reference for arguments as it will be used in callback
 		  //search if arguments exists in cache 
 		  _.each(cache, function(item, index){
 			  if(item.args.length === inputArgs.length){
+				  //compare 2 array elements one by one 
 				  for(var i=0; i<item.args.length; i++){
 					  if(item.args[i] !== inputArgs[i]){
 						  equalArgs = false; //arguments have not been computed
@@ -302,13 +303,14 @@ var _ = {};
 					  }						  
 				  }
 			  }			  
-			  //give computed result when arguments and cache are equal
+			  //save computed result when arguments and cache args are equal
 			  if(equalArgs){
 				  result = item.result;				  
 			  }
 		  });
 		 if(!equalArgs||cache.length===0){
-			 //create a new obj and compute a new result with new arguments, and store it to cache		
+			 //create a new obj and compute a new result with new arguments, and store it to cache	
+			  var obj=new Object();//store args and return result
 			  obj.args = arguments;
 			  obj.result = func.apply(this, arguments);
 			  cache.push(obj);
@@ -326,8 +328,7 @@ var _ = {};
   // parameter. For example _.delay(someFunction, 500, 'a', 'b') will
   // call someFunction('a', 'b') after 500ms
   _.delay = function(func, wait) {
-	  var args = Array.prototype.slice.call(arguments);
-	  args.splice(0, 2); //remove first 2 elements
+	  var args = Array.prototype.slice.call(arguments, 2); //remove first 2 elements	  
 	  var self = func;
 	  setTimeout(function(){
 		  self.apply(this, args);
@@ -369,6 +370,20 @@ var _ = {};
   // of that string. For example, _.sortBy(people, 'name') should sort
   // an array of people by their name.
   _.sortBy = function(collection, iterator) {
+	  return collection.sort(function(a, b){
+		  //collection is either an array of objects or values
+		  if(typeof a !== 'object'){ //sort values
+			 if(typeof a === 'string') //sort array by string length
+				 return a.length - b.length;
+			 else
+				 return a-b;
+		  } else{ //sort objects by iterator
+			  if(typeof iterator(a) === 'string')
+				  return iterator(a).length - iterator(b).length;
+			  else
+				  return iterator(a) - iterator(b);
+		  }
+	  });
   };
 
   // Zip together two or more arrays with elements of the same index
@@ -377,6 +392,22 @@ var _ = {};
   // Example:
   // _.zip(['a','b','c','d'], [1,2,3]) returns [['a',1], ['b',2], ['c',3], ['d',undefined]]
   _.zip = function() {
+	  var args = arguments;
+	  var result = [];
+	  var dimension = arguments.length;
+	  //run dimension rounds to fill sub-arrays
+	  for(var i=0; i<dimension; i++){
+		var subArray = [];
+		_.each(args, function(item){
+			if(item[i] === undefined)
+				subArray.push(undefined);
+			else
+				subArray.push(item[i]);
+		});
+	    result.push(subArray);
+	  }	
+	  return result;
+	  
   };
 
   // Takes a multidimensional array and converts it to a one-dimensional array.
@@ -384,16 +415,64 @@ var _ = {};
   //
   // Hint: Use Array.isArray to check if something is an array
   _.flatten = function(nestedArray, result) {
+	  var flattenResult = (result===undefined)? [] : result;
+	  _.each(nestedArray, function(item){
+		  if(Array.isArray(item)){
+			  _.flatten(item, flattenResult);
+		  }else{
+			  flattenResult.push(item);
+		  }
+	  });
+	  return flattenResult;
   };
 
   // Takes an arbitrary number of arrays and produces an array that contains
   // every item shared between all the passed-in arrays.
   _.intersection = function() {
+	  var result = [];
+	  var isCommon = false;
+	  var arrays = arguments;
+	  var shortLength, shortIndex;
+	  //starts from the shortest array
+	  _.each(arrays, function(array, index){
+		  if(array.length < shortLength || shortLength === undefined){
+			  shortLength = array.length;
+			  shortIndex = index;
+		  }
+	  });
+	  var shortArray = arguments[shortIndex];
+	  for(var i=0; i<shortLength; i++){
+		  _.every(arrays, function(array){
+			  if(_.contains(array, shortArray[i])){
+				  isCommon = true;
+			  }else
+				  isCommon = false;
+		  });
+		  if(isCommon)
+			  result.push(shortArray[i]);
+	  }
+	  return result;
   };
 
   // Take the difference between one array and a number of other arrays.
   // Only the elements present in just the first array will remain.
   _.difference = function(array) {
+	  var result = [];
+	  var otherArrays = Array.prototype.slice.call(arguments, 1);
+	  //loop through 'array'
+	  _.each(array, function(item){
+		  //diff- false: other arrays have the item,  true:other arrays do not have the item
+		  var isDiff = _.reduce(otherArrays, function(diff, otherArray){
+			  if(!diff)
+				  return false;
+			  return _.contains(otherArray, item)? false : true;				
+		  }, true);
+		  //at the end of the loop, push the 'array' element to result when other arrays do not have it
+		  if(isDiff)
+			  result.push(item);
+	  })	 
+	  //return result
+	  return result;
   };
 
 
