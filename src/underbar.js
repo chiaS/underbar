@@ -486,6 +486,39 @@ var _ = {};
   //
   // See the Underbar readme for details.
   _.throttle = function(func, wait) {
+	  var result = null;
+	  var timer=0;
+	  var firstCall = true;
+	  //newInterval - true: no function has been called in this interval;
+	  //false: one function is waiting to be called
+	  var newInterval = true; 	 
+	  var args = Array.prototype.slice.call(arguments, 2);
+	  
+	  //there are 2 timers in stopwatch. One is to reset the timer every wait milliseconds, 
+	  //the other one is to increase the timer. Once stopwatch is invoked, timer will be updated by itself
+	  var stopwatch = function(){
+		  setInterval(function(){ timer=0; newInterval=true;}, wait);//reset timer every wait duration
+		  setInterval(function(){ timer+=16; }, 16);//update timer
+	  }	
+	  return function(){		 
+		 //if this is the first call, execute the function and start the timer.
+		 //the second call will be scheduled in 'wait' time, 
+		 if(firstCall){
+			 firstCall = false;		
+			 //Dont set newInterval = false!, it will block the schedule for the 2nd call
+			 result = func.apply(null, args);
+			 stopwatch();//only start timer at after firstcall
+		 }else if(newInterval && timer<wait){
+			 //schedule the next call
+			 setTimeout(function(){
+				 newInterval = false; //do not accept other calls within this interval
+				 result = func.apply(null, args);			 
+			 }, wait);
+		 }
+		 return result;
+	  };
+	  
+	  
   };
 
 }).call(this);
